@@ -24,8 +24,8 @@
 
 5、自定义定时任务，时间到了就会自动执行。
 
-![](file://C:\Users\Season\AppData\Roaming\marktext\images\2025-12-16-17-12-51-image.png?msec=1765876371380)
+![](https://github.com/FunSeason/enshan/blob/main/image/02.png)
 
 # 推送结果示例如下：
 
-![](file://C:\Users\Season\AppData\Roaming\marktext\images\2025-12-16-17-16-03-image.png?msec=1765876563562)
+![](https://github.com/FunSeason/enshan/blob/main/image/03.png)
