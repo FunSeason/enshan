@@ -16,7 +16,7 @@
 
 3、修改config.json中为自己的UID、cookies以及推送token
 
-![](file://C:\Users\Season\AppData\Roaming\marktext\images\2025-12-16-17-06-25-image.png?msec=1765875985090)
+![](https://github.com/FunSeason/enshan/blob/main/image/01.png)
 
 4、复制/导入本仓下的enshan.sh文件到自己青龙面板的脚本管理
 
