@@ -22,7 +22,7 @@ def random_wait():
     print("⏰ 倒计时结束，任务开始！")
 
 def force_kill_chrome():
-    """强制清理残留的浏览器进程 (环境自愈)"""
+    """强制清理残留的浏览器进程"""
     print("🧹 正在清理残留的浏览器进程...")
     try:
         os.system("pkill -f chromium")
@@ -98,15 +98,14 @@ def run_sign_in():
         print("❌ 错误: config.json 配置缺失")
         return
 
-    # 3. 初始化浏览器配置 (针对 Docker/青龙 深度优化)
+    # 3. 初始化浏览器配置
     co = ChromiumOptions()
-    co.set_argument('--no-sandbox')           # Linux root 运行必需
-    co.set_argument('--disable-gpu')          # 禁用 GPU 加速
-    co.set_argument('--disable-dev-shm-usage') # 解决 Docker 内存崩溃问题 (关键)
-    co.set_argument('--headless=new')         # 新版无头模式 (关键)
-    co.set_argument('--window-size=375,812')  # 手机尺寸
+    co.set_argument('--no-sandbox')
+    co.set_argument('--disable-gpu')
+    co.set_argument('--disable-dev-shm-usage')
+    co.set_argument('--headless=new')
+    co.set_argument('--window-size=375,812')
     
-    # 自动识别路径
     if os.path.exists("/usr/bin/chromium-browser"):
         co.set_paths(browser_path="/usr/bin/chromium-browser")
     elif os.path.exists("/usr/bin/chromium"):
@@ -114,25 +113,24 @@ def run_sign_in():
     
     co.set_user_agent(user_agent=USER_AGENT)
     
-    # 4. 尝试启动浏览器 (含重试机制)
+    # 4. 尝试启动浏览器
     page = None
     for attempt in range(2):
         try:
-            # 每次启动前先清理环境
             force_kill_chrome()
             page = ChromiumPage(co)
-            break # 启动成功，跳出循环
+            break
         except Exception as e:
             print(f"⚠️ 浏览器启动失败 (第 {attempt+1} 次尝试): {e}")
             time.sleep(3)
     
     if not page:
         print("❌ 浏览器连续启动失败，放弃执行。")
-        push_pushplus(push_token, "恩山脚本错误: 浏览器启动失败 (已尝试清理进程)。")
+        push_pushplus(push_token, "恩山脚本错误: 浏览器启动失败。")
         return
 
     try:
-        print("=== 开始执行恩山签到 (Python版 by Funseaon) ===")
+        print("=== 开始执行恩山签到 (by Funseason) ===")
         
         # 5. 访问主页 & 注入 Cookie
         print("1. 访问主页确立作用域...")
@@ -149,13 +147,36 @@ def run_sign_in():
             print("🛡️ 检测到防火墙拦截，正在等待自动跳转...")
             time.sleep(15)
 
-        # 6. 获取 Formhash
+        # 6. 获取 Formhash (全能提取逻辑)
         print("3. 正在获取签到信息...")
         check_url = "https://www.right.com.cn/forum/erling_qd-sign_in_m.html"
         page.get(check_url)
+        time.sleep(3) # 等待加载
         
         is_signed = False
-        # 宽容获取 body 文本
+        html = page.html
+        
+        # 提取逻辑 1: JS 变量
+        formhash = extract_regex(r"var FORMHASH = '([0-9a-zA-Z]+)'", html, "")
+        
+        # 提取逻辑 2: Input 标签
+        if not formhash:
+            formhash = extract_regex(r'name="formhash" value="([0-9a-zA-Z]+)"', html, "")
+            
+        # 提取逻辑 3: URL 链接 (如退出登录链接) - 最强兜底
+        if not formhash:
+            # 匹配 href="...formhash=xxxx..."
+            formhash = extract_regex(r'formhash=([0-9a-zA-Z]+)', html, "")
+            
+        # === 核心检测：是否 Cookie 已死 ===
+        if not formhash:
+            # 检查是否有“登录”字样
+            if "登录" in page.ele('tag:body').text or "Login" in page.ele('tag:body').text:
+                print("❌ 严重错误: Cookie 已失效，变为游客状态。")
+                push_pushplus(push_token, "恩山签到失败：Cookie 已失效，请在 config.json 中填入新的 Cookie。")
+                return
+        
+        # 检查是否已签到
         try:
             body_text = page.ele('tag:body').text
             if "连续签到" in body_text and "立即签到" not in body_text:
@@ -163,21 +184,16 @@ def run_sign_in():
                 print("ℹ️ 状态: 今天已经签到过了。")
         except:
             pass
-
-        html = page.html
-        formhash = extract_regex(r"var FORMHASH = '([0-9a-zA-Z]+)'", html, "")
-        if not formhash:
-            formhash = extract_regex(r'name="formhash" value="([0-9a-zA-Z]+)"', html, "")
             
         if not formhash and not is_signed:
-            print("❌ 错误: 无法提取 formhash")
-            push_pushplus(push_token, "恩山签到失败：无法获取 Formhash")
+            print("❌ 错误: 无法提取 formhash (可能已登出或页面结构改变)")
+            push_pushplus(push_token, "恩山签到失败：无法提取 Formhash (可能 Cookie 已失效)")
             return
         
         if formhash:
             print(f"🔑 获取 Formhash 成功: {formhash}")
 
-        # 7. 执行签到 (JS 注入)
+        # 7. 执行签到
         sign_success = False
         sign_msg = "已签到"
         
@@ -230,7 +246,7 @@ def run_sign_in():
             page.get(credit_log_url)
             time.sleep(2)
 
-            # 8.3 获取个人资料 (双语匹配模式)
+            # 8.3 获取个人资料
             profile_url = f"https://www.right.com.cn/forum/home.php?mod=space&uid={user_uid}&do=profile&mycenter=1&mobile=2"
             print(f"📥 正在抓取个人资料页 (UID: {user_uid})...")
             page.get(profile_url)
@@ -241,14 +257,12 @@ def run_sign_in():
             
             try:
                 time.sleep(5)
-                # 获取所有列表项
                 all_lis = page.eles('tag:li')
-                
                 for li in all_lis:
                     clean_text = li.text.replace(" ", "").replace("\n", "").replace("\r", "")
                     if not clean_text: continue
                     
-                    # === 双语匹配逻辑 ===
+                    # 双语模糊匹配
                     if ("积分" in clean_text and "今日" not in clean_text) or "Points" in clean_text:
                         match_cn = re.search(r'(\d+)积分', clean_text)
                         match_en = re.search(r'(\d+)Points', clean_text)
@@ -303,12 +317,11 @@ def run_sign_in():
         push_pushplus(push_token, f"恩山脚本运行出错: {str(e)}")
         
     finally:
-        # 9. 确保关闭浏览器并清理资源
         try:
             if page: page.quit()
         except:
             pass
-        force_kill_chrome() # 再次清理，防止僵尸进程
+        force_kill_chrome()
 
 if __name__ == "__main__":
     run_sign_in()
