@@ -2,6 +2,19 @@
 
 2026年2月 更新的恩山论坛每日签到脚本，适用于青龙面板。
 
+## 更新日期：2026-02-11
+
+修复了典型的 Docker/容器环境浏览器启动崩溃问题。
+
+虽然之前的代码已经加入了一些防崩溃参数，但在某些青龙面板的精简 Linux 环境（Alpine Linux）中，Chromium 对内存和进程的限制非常敏感，导致启动瞬间直接崩溃，DrissionPage 无法连接。
+
+🔧 修复原理：
+移除了不稳定的 single-process 和 no-zygote：这些参数在某些旧版内核中会导致浏览器“暴毙”。
+
+加入了 disable-features=VizDisplayCompositor：这是专门针对 Alpine Linux 图形合成器崩溃的修复参数。
+
+加入了 disable-software-rasterizer：防止因缺失图形库导致的软件光栅化崩溃。
+
 ## 更新日期：2026-02-04
 
 这是一个基于 **Python + DrissionPage** 开发的恩山无线论坛 (Right.com.cn) 自动签到脚本。
