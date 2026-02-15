@@ -23,15 +23,11 @@ def random_wait():
     print("⏰ 倒计时结束，任务开始！")
 
 def force_kill_chrome():
-    """强制清理残留的浏览器进程 (环境自愈)"""
+    """强制清理残留的浏览器进程"""
     print("🧹 正在清理残留的浏览器进程...")
     try:
         os.system("pkill -f chromium")
         os.system("pkill -f chrome")
-        # 清理临时用户目录
-        tmp_dir = "/tmp/drissionpage_enshan"
-        if os.path.exists(tmp_dir):
-            shutil.rmtree(tmp_dir, ignore_errors=True)
         time.sleep(2) 
     except:
         pass
@@ -103,26 +99,32 @@ def run_sign_in():
         print("❌ 错误: config.json 配置缺失")
         return
 
-    # 3. 初始化浏览器配置 (v3.2 精简稳健版)
+    # 3. 初始化浏览器配置 (v3.3 防冲突机制)
     co = ChromiumOptions()
     
-    # === 核心参数修正 ===
-    # 移除 v3.1 中导致崩溃的 --single-process 和 --no-zygote
-    co.set_argument('--headless')              # 必须: 无头模式
-    co.set_argument('--no-sandbox')            # 必须: 容器环境
-    co.set_argument('--disable-gpu')           # 必须: 禁用GPU
-    co.set_argument('--disable-dev-shm-usage') # 必须: 内存优化
+    # 随机生成端口，避免 9222 被占用导致的崩溃
+    rand_port = random.randint(9300, 19000)
+    co.set_local_port(rand_port)
+    print(f"🔌 分配随机通信端口: {rand_port}")
     
-    # === 新增 Alpine Linux 专用防崩溃参数 ===
-    co.set_argument('--disable-software-rasterizer')     # 禁用软件光栅化(解决GL报错)
-    co.set_argument('--disable-features=VizDisplayCompositor') # 解决合成器崩溃
+    # 随机生成独立临时数据目录，用完即焚
+    rand_dir = f"/tmp/drissionpage_enshan_{rand_port}"
+    co.set_user_data_path(rand_dir)
+    print(f"📁 分配独立数据目录: {rand_dir}")
+    
+    # 按照内核提示，加入 --headless=new
+    co.set_argument('--headless=new')
+    
+    # 核心环境参数
+    co.set_argument('--no-sandbox')
+    co.set_argument('--disable-gpu')
+    co.set_argument('--disable-dev-shm-usage')
+    
+    # 杂项优化参数
+    co.set_argument('--disable-software-rasterizer')
+    co.set_argument('--disable-features=VizDisplayCompositor')
     co.set_argument('--disable-extensions')
     co.set_argument('--disable-popup-blocking')
-    co.set_argument('--remote-debugging-port=9222') # 显式指定端口
-    
-    # 指定用户目录，防止权限锁死
-    user_data_dir = "/tmp/drissionpage_enshan"
-    co.set_user_data_path(user_data_dir)
     
     co.set_argument('--window-size=375,812')
     co.set_user_agent(user_agent=USER_AGENT)
@@ -145,7 +147,6 @@ def run_sign_in():
     for attempt in range(3):
         try:
             force_kill_chrome()
-            # 这里的 timeout 是连接等待时间，给稍微长一点
             page = ChromiumPage(co)
             if page: break
         except Exception as e:
@@ -154,11 +155,13 @@ def run_sign_in():
     
     if not page:
         print("❌ 浏览器连续启动失败，放弃执行。")
-        push_pushplus(push_token, "恩山脚本错误: 浏览器启动失败 (v3.2)。")
+        push_pushplus(push_token, "恩山脚本错误: 浏览器连续启动失败 (v3.3)。请尝试重启青龙容器。")
+        # 清理临时目录
+        shutil.rmtree(rand_dir, ignore_errors=True)
         return
 
     try:
-        print("=== 开始执行恩山签到 (Python版 - v3.2精简稳健版) ===")
+        print("=== 开始执行恩山签到 (By Funseason - v3.3) ===")
         
         # 5. 访问主页 & 注入 Cookie
         print("1. 访问主页确立作用域...")
@@ -344,6 +347,11 @@ def run_sign_in():
         except:
             pass
         force_kill_chrome()
+        # 执行完毕后销毁临时目录
+        try:
+            shutil.rmtree(rand_dir, ignore_errors=True)
+        except:
+            pass
 
 if __name__ == "__main__":
     run_sign_in()
